@@ -206,8 +206,96 @@
       font-family: 'Helvetica Neue', sans-serif;
       font-size: 0.78rem;
       color: var(--muted);
-      margin-bottom: 22px;
+      margin-bottom: 18px;
     }
+
+    /* ── Now Playing widget ── */
+    .now-playing {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(200,169,110,0.15);
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin-bottom: 18px;
+      min-height: 62px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      overflow: hidden;
+    }
+
+    .np-icon {
+      flex-shrink: 0;
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      background: rgba(200,169,110,0.12);
+      border: 1px solid rgba(200,169,110,0.25);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--gold);
+    }
+
+    .np-icon svg { width: 15px; height: 15px; }
+
+    .np-text { flex: 1; min-width: 0; }
+
+    .np-label {
+      font-family: 'Helvetica Neue', sans-serif;
+      font-size: 0.6rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 3px;
+    }
+
+    .np-title {
+      font-size: 0.92rem;
+      font-weight: 400;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: var(--text);
+      line-height: 1.3;
+    }
+
+    .np-title.scrolling {
+      animation: marquee 12s linear infinite;
+      white-space: nowrap;
+      overflow: visible;
+      text-overflow: clip;
+      display: inline-block;
+    }
+
+    @keyframes marquee {
+      0%   { transform: translateX(0); }
+      30%  { transform: translateX(0); }
+      80%  { transform: translateX(-60%); }
+      100% { transform: translateX(-60%); }
+    }
+
+    .np-artist {
+      font-family: 'Helvetica Neue', sans-serif;
+      font-size: 0.75rem;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-top: 1px;
+    }
+
+    .np-elapsed {
+      flex-shrink: 0;
+      font-family: 'Helvetica Neue', sans-serif;
+      font-size: 0.65rem;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+      align-self: flex-start;
+      padding-top: 2px;
+    }
+
+    .np-placeholder { color: var(--muted); font-style: italic; font-size: 0.82rem; }
+
+    /* Fade transition when track changes */
+    .now-playing.fade { opacity: 0; transition: opacity 0.3s; }
+    .now-playing.fade-in { opacity: 1; transition: opacity 0.4s; }
 
     /* Waveform visualizer */
     .viz {
@@ -404,8 +492,142 @@
 
     @keyframes ticker { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 
+    /* ── Center column (player + recently played) ── */
+    .center-col {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      width: 360px;
+      flex-shrink: 0;
+    }
+
+    /* ── Recently Played panel ── */
+    .recently-played {
+      background: var(--card);
+      border: 1px solid rgba(200,169,110,0.2);
+      border-radius: 18px;
+      backdrop-filter: blur(20px);
+      box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+      overflow: hidden;
+    }
+
+    .rp-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .rp-header-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .rp-header-left svg {
+      width: 14px; height: 14px;
+      color: var(--gold);
+    }
+
+    .rp-title {
+      font-family: 'Helvetica Neue', sans-serif;
+      font-size: 0.68rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--gold);
+    }
+
+    .rp-count {
+      font-family: 'Helvetica Neue', sans-serif;
+      font-size: 0.65rem;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+    }
+
+    .rp-list {
+      list-style: none;
+      max-height: 220px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: #333 transparent;
+    }
+
+    .rp-list::-webkit-scrollbar       { width: 4px; }
+    .rp-list::-webkit-scrollbar-track { background: transparent; }
+    .rp-list::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+
+    .rp-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 20px;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      transition: background 0.15s;
+    }
+
+    .rp-item:last-child { border-bottom: none; }
+    .rp-item:hover      { background: rgba(255,255,255,0.03); }
+
+    .rp-num {
+      font-family: 'Helvetica Neue', sans-serif;
+      font-size: 0.68rem;
+      color: #444;
+      width: 16px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    .rp-info { flex: 1; min-width: 0; }
+
+    .rp-track {
+      font-size: 0.85rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: var(--text);
+      line-height: 1.3;
+    }
+
+    .rp-artist {
+      font-family: 'Helvetica Neue', sans-serif;
+      font-size: 0.72rem;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-top: 1px;
+    }
+
+    .rp-time {
+      font-family: 'Helvetica Neue', sans-serif;
+      font-size: 0.65rem;
+      color: #444;
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+
+    .rp-empty {
+      padding: 20px;
+      text-align: center;
+      font-family: 'Helvetica Neue', sans-serif;
+      font-size: 0.78rem;
+      color: var(--muted);
+      font-style: italic;
+    }
+
+    .rp-item.new-entry {
+      animation: slideIn 0.35s ease-out;
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(-8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
     @media (max-width: 860px) {
       .feature-images, .feature-right { display: none; }
+      .center-col { width: 100%; max-width: 400px; }
       main { padding: 24px 16px; }
     }
   </style>
@@ -432,6 +654,9 @@
       <img src="https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=400&auto=format&fit=crop&q=80" alt="Headphones on vinyl">
     </div>
 
+    <!-- Center column -->
+    <div class="center-col">
+
     <!-- Player card -->
     <div class="player">
       <div class="art-wrap">
@@ -444,6 +669,19 @@
         <div class="station-label">Now Streaming</div>
         <div class="station-title">Radiocalico</div>
         <div class="station-sub">Lossless HLS &bull; 24 / 7 Live Radio</div>
+
+        <!-- Now Playing widget -->
+        <div class="now-playing" id="nowPlaying">
+          <div class="np-icon">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg>
+          </div>
+          <div class="np-text">
+            <div class="np-label">Now Playing</div>
+            <div class="np-title np-placeholder" id="npTitle">Connecting…</div>
+            <div class="np-artist" id="npArtist"></div>
+          </div>
+          <div class="np-elapsed" id="npElapsed"></div>
+        </div>
 
         <div class="viz paused" id="viz">
           <div class="b"></div><div class="b"></div><div class="b"></div><div class="b"></div>
@@ -475,6 +713,22 @@
       </div>
     </div>
 
+    <!-- Recently Played panel -->
+    <div class="recently-played">
+      <div class="rp-header">
+        <div class="rp-header-left">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 3a9 9 0 1 0 .001 18.001A9 9 0 0 0 13 3zm0 16a7 7 0 1 1 .001-14.001A7 7 0 0 1 13 19zm.5-10.25v5.06l4.39 2.61-.75 1.26-5.14-3.07V8.75h1.5z"/></svg>
+          <span class="rp-title">Recently Played</span>
+        </div>
+        <span class="rp-count" id="rpCount"></span>
+      </div>
+      <ul class="rp-list" id="rpList">
+        <li class="rp-empty">No tracks played yet</li>
+      </ul>
+    </div>
+
+    </div><!-- /.center-col -->
+
     <!-- Right images -->
     <div class="feature-right">
       <img src="https://images.unsplash.com/photo-1514320291840-2e0a9bf2a9ae?w=400&auto=format&fit=crop&q=80" alt="Vinyl record">
@@ -499,21 +753,28 @@
 <script>
   const STREAM = 'https://d3d4yli4hf5bmh.cloudfront.net/hls/live.m3u8';
 
-  const audio     = document.getElementById('audio');
-  const playBtn   = document.getElementById('playBtn');
-  const stopBtn   = document.getElementById('stopBtn');
-  const iconPlay  = document.getElementById('iconPlay');
-  const iconPause = document.getElementById('iconPause');
-  const viz       = document.getElementById('viz');
-  const vinyl     = document.getElementById('vinyl');
-  const spinner   = document.getElementById('spinner');
-  const statusText= document.getElementById('statusText');
-  const statusBar = document.getElementById('statusBar');
-  const volumeEl  = document.getElementById('volume');
+  const audio      = document.getElementById('audio');
+  const playBtn    = document.getElementById('playBtn');
+  const stopBtn    = document.getElementById('stopBtn');
+  const iconPlay   = document.getElementById('iconPlay');
+  const iconPause  = document.getElementById('iconPause');
+  const viz        = document.getElementById('viz');
+  const vinyl      = document.getElementById('vinyl');
+  const spinner    = document.getElementById('spinner');
+  const statusText = document.getElementById('statusText');
+  const statusBar  = document.getElementById('statusBar');
+  const volumeEl   = document.getElementById('volume');
+  const npTitle    = document.getElementById('npTitle');
+  const npArtist   = document.getElementById('npArtist');
+  const npElapsed  = document.getElementById('npElapsed');
+  const npWidget   = document.getElementById('nowPlaying');
 
-  let hls = null;
-  let isPlaying = false;
+  let hls          = null;
+  let isPlaying    = false;
+  let track        = { title: null, artist: null, startedAt: null };
+  let elapsedTimer = null;
 
+  // ── Status ───────────────────────────────────────────────────
   function setStatus(msg, loading = false, error = false) {
     statusText.textContent = msg;
     spinner.classList.toggle('visible', loading);
@@ -528,6 +789,47 @@
     vinyl.classList.toggle('spinning', state);
   }
 
+  // ── Now Playing ──────────────────────────────────────────────
+  function formatElapsed(startedAt) {
+    if (!startedAt) return '';
+    const secs = Math.max(0, Math.floor((Date.now() - new Date(startedAt)) / 1000));
+    const m = String(Math.floor(secs / 60)).padStart(2, '0');
+    const s = String(secs % 60).padStart(2, '0');
+    return `${m}:${s}`;
+  }
+
+  function applyTrack(next) {
+    const changed = next.title !== track.title || next.artist !== track.artist;
+    if (!changed && track.title) return;
+    track = next;
+
+    npWidget.style.opacity = '0';
+    npWidget.style.transition = 'opacity 0.3s';
+
+    setTimeout(() => {
+      if (track.title) {
+        npTitle.textContent = track.title;
+        npTitle.classList.remove('np-placeholder');
+        npTitle.classList.toggle('scrolling', npTitle.scrollWidth > npTitle.parentElement.clientWidth);
+      } else {
+        npTitle.textContent = isPlaying ? 'Live Radio' : 'Ready to play';
+        npTitle.classList.add('np-placeholder');
+        npTitle.classList.remove('scrolling');
+      }
+      npArtist.textContent  = track.artist || '';
+      npElapsed.textContent = track.startedAt ? formatElapsed(track.startedAt) : '';
+      npWidget.style.opacity = '1';
+    }, 300);
+
+    clearInterval(elapsedTimer);
+    if (track.startedAt) {
+      elapsedTimer = setInterval(() => {
+        npElapsed.textContent = formatElapsed(track.startedAt);
+      }, 1000);
+    }
+  }
+
+  // ── HLS stream ───────────────────────────────────────────────
   function destroyHls() {
     if (hls) { hls.destroy(); hls = null; }
     audio.pause();
@@ -538,17 +840,31 @@
   function startStream() {
     destroyHls();
     setStatus('Connecting…', true);
+    applyTrack({ title: null, artist: null, startedAt: null });
 
     if (Hls.isSupported()) {
       hls = new Hls({ enableWorker: true, lowLatencyMode: false });
       hls.loadSource(STREAM);
       hls.attachMedia(audio);
 
+      // Read ID3 metadata tags embedded in the stream
+      hls.on(Hls.Events.FRAG_PARSING_METADATA, (_, data) => {
+        let next = { ...track };
+        (data.samples || []).forEach(sample => {
+          (sample.unit || []).forEach(tag => {
+            const val = tag.data || tag.info || '';
+            if (tag.key === 'TIT2' && val) { next.title = val; next.startedAt = new Date().toISOString(); }
+            if (tag.key === 'TPE1' && val) { next.artist = val; }
+          });
+        });
+        applyTrack(next);
+      });
+
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         audio.volume = volumeEl.value;
         audio.play()
           .then(() => setStatus('Live'))
-          .catch(() => { setPlayingState(false); setStatus('Blocked — click play', false, false); });
+          .catch(() => { setPlayingState(false); setStatus('Click play to listen'); });
       });
 
       hls.on(Hls.Events.ERROR, (_, data) => {
@@ -573,14 +889,13 @@
     destroyHls();
     setPlayingState(false);
     setStatus('Stopped');
+    clearInterval(elapsedTimer);
+    applyTrack({ title: null, artist: null, startedAt: null });
   }
 
-  // Play / Pause toggle
+  // ── Controls ─────────────────────────────────────────────────
   playBtn.addEventListener('click', () => {
-    if (!hls && !audio.src) {
-      startStream();
-      return;
-    }
+    if (!hls && !audio.src) { startStream(); return; }
     if (isPlaying) {
       audio.pause();
       setPlayingState(false);
@@ -592,16 +907,69 @@
     }
   });
 
-  // Stop — tears down the stream entirely
   stopBtn.addEventListener('click', stopStream);
 
-  // Sync state from audio events
   audio.addEventListener('playing', () => { setPlayingState(true); setStatus('Live'); spinner.classList.remove('visible'); });
   audio.addEventListener('waiting', () => setStatus('Buffering…', true));
-  audio.addEventListener('pause',   () => { setPlayingState(false); });
+  audio.addEventListener('pause',   () => setPlayingState(false));
   audio.addEventListener('ended',   () => { setPlayingState(false); setStatus('Stream ended'); });
 
   volumeEl.addEventListener('input', () => { audio.volume = volumeEl.value; });
+
+  // ── Poll backend as fallback (every 15 s) ────────────────────
+  async function pollNowPlaying() {
+    try {
+      const res  = await fetch('/api/now-playing');
+      const data = await res.json();
+      if (data.title) applyTrack(data);
+    } catch (_) {}
+  }
+
+  pollNowPlaying();
+  setInterval(pollNowPlaying, 15000);
+
+  // ── Recently Played ──────────────────────────────────────────
+  const rpList  = document.getElementById('rpList');
+  const rpCount = document.getElementById('rpCount');
+  let lastRpId  = null;
+
+  function timeAgo(iso) {
+    const secs = Math.floor((Date.now() - new Date(iso)) / 1000);
+    if (secs < 60)   return 'just now';
+    if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
+    if (secs < 86400) return `${Math.floor(secs / 3600)}h ago`;
+    return `${Math.floor(secs / 86400)}d ago`;
+  }
+
+  async function fetchRecentlyPlayed() {
+    try {
+      const res    = await fetch('/api/recently-played');
+      const tracks = await res.json();
+      if (!tracks.length) return;
+
+      const isNew = lastRpId !== tracks[0].id;
+      lastRpId = tracks[0].id;
+
+      rpCount.textContent = `${tracks.length} track${tracks.length !== 1 ? 's' : ''}`;
+
+      rpList.innerHTML = tracks.map((t, i) => `
+        <li class="rp-item${isNew && i === 0 ? ' new-entry' : ''}">
+          <span class="rp-num">${i + 1}</span>
+          <div class="rp-info">
+            <div class="rp-track">${escHtml(t.title)}</div>
+            ${t.artist ? `<div class="rp-artist">${escHtml(t.artist)}</div>` : ''}
+          </div>
+          <span class="rp-time">${timeAgo(t.played_at)}</span>
+        </li>`).join('');
+    } catch (_) {}
+  }
+
+  function escHtml(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  fetchRecentlyPlayed();
+  setInterval(fetchRecentlyPlayed, 15000);
 
   // Auto-start
   startStream();

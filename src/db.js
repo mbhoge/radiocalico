@@ -14,7 +14,14 @@ db.exec(`
     name TEXT NOT NULL,
     email TEXT UNIQUE NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )
+  );
+
+  CREATE TABLE IF NOT EXISTS played_tracks (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    title     TEXT NOT NULL,
+    artist    TEXT,
+    played_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `);
 
 module.exports = db;
