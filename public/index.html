@@ -225,12 +225,19 @@
 
     .np-icon {
       flex-shrink: 0;
-      width: 32px; height: 32px;
-      border-radius: 50%;
+      width: 48px; height: 48px;
+      border-radius: 6px;
       background: rgba(200,169,110,0.12);
       border: 1px solid rgba(200,169,110,0.25);
       display: flex; align-items: center; justify-content: center;
       color: var(--gold);
+      overflow: hidden;
+    }
+
+    .np-icon img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
     }
 
     .np-icon svg { width: 15px; height: 15px; }
@@ -292,6 +299,51 @@
     }
 
     .np-placeholder { color: var(--muted); font-style: italic; font-size: 0.82rem; }
+
+    .np-ratings {
+      display: flex;
+      gap: 8px;
+      align-self: center;
+      flex-shrink: 0;
+    }
+
+    .rating-btn {
+      background: none;
+      border: 1px solid rgba(200,169,110,0.25);
+      color: var(--muted);
+      cursor: pointer;
+      padding: 4px 6px;
+      border-radius: 4px;
+      font-family: 'Helvetica Neue', sans-serif;
+      font-size: 0.65rem;
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      transition: all 0.2s;
+    }
+
+    .rating-btn:hover {
+      background: rgba(200,169,110,0.1);
+      border-color: var(--gold);
+      color: var(--gold);
+    }
+
+    .rating-btn.active {
+      background: rgba(200,169,110,0.2);
+      border-color: var(--gold);
+      color: var(--gold);
+    }
+
+    .rating-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .rating-count {
+      font-family: 'Helvetica Neue', sans-serif;
+      font-size: 0.6rem;
+      color: inherit;
+    }
 
     /* Fade transition when track changes */
     .now-playing.fade { opacity: 0; transition: opacity 0.3s; }
@@ -672,13 +724,21 @@
 
         <!-- Now Playing widget -->
         <div class="now-playing" id="nowPlaying">
-          <div class="np-icon">
+          <div class="np-icon" id="npIcon">
             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg>
           </div>
           <div class="np-text">
             <div class="np-label">Now Playing</div>
             <div class="np-title np-placeholder" id="npTitle">Connecting…</div>
             <div class="np-artist" id="npArtist"></div>
+          </div>
+          <div class="np-ratings" id="npRatings">
+            <button class="rating-btn" id="thumbsUpBtn" title="Thumbs up">
+              👍 <span class="rating-count" id="thumbsUpCount">0</span>
+            </button>
+            <button class="rating-btn" id="thumbsDownBtn" title="Thumbs down">
+              👎 <span class="rating-count" id="thumbsDownCount">0</span>
+            </button>
           </div>
           <div class="np-elapsed" id="npElapsed"></div>
         </div>
@@ -764,15 +824,70 @@
   const statusText = document.getElementById('statusText');
   const statusBar  = document.getElementById('statusBar');
   const volumeEl   = document.getElementById('volume');
-  const npTitle    = document.getElementById('npTitle');
-  const npArtist   = document.getElementById('npArtist');
-  const npElapsed  = document.getElementById('npElapsed');
-  const npWidget   = document.getElementById('nowPlaying');
+  const npTitle      = document.getElementById('npTitle');
+  const npArtist     = document.getElementById('npArtist');
+  const npElapsed    = document.getElementById('npElapsed');
+  const npWidget     = document.getElementById('nowPlaying');
+  const npIcon       = document.getElementById('npIcon');
+  const thumbsUpBtn  = document.getElementById('thumbsUpBtn');
+  const thumbsDownBtn = document.getElementById('thumbsDownBtn');
+  const thumbsUpCount = document.getElementById('thumbsUpCount');
+  const thumbsDownCount = document.getElementById('thumbsDownCount');
 
   let hls          = null;
   let isPlaying    = false;
   let track        = { title: null, artist: null, startedAt: null };
   let elapsedTimer = null;
+  let sessionId    = localStorage.getItem('radiocalico-session-id') || generateSessionId();
+  let currentRating = null;
+
+  function generateSessionId() {
+    const id = 'session-' + Math.random().toString(36).substr(2, 9) + '-' + Date.now();
+    localStorage.setItem('radiocalico-session-id', id);
+    return id;
+  }
+
+  // ── Ratings ──────────────────────────────────────────────────
+  async function submitRating(ratingValue) {
+    if (!track.title) return;
+    try {
+      await fetch('/api/rate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId,
+          title: track.title,
+          artist: track.artist || null,
+          rating: ratingValue
+        })
+      });
+      currentRating = ratingValue;
+      updateRatingUI();
+      await fetchRatings();
+    } catch (err) {
+      console.error('Failed to submit rating:', err);
+    }
+  }
+
+  async function fetchRatings() {
+    if (!track.title) return;
+    try {
+      const url = `/api/ratings/${encodeURIComponent(track.title)}?sessionId=${encodeURIComponent(sessionId)}&artist=${encodeURIComponent(track.artist || '')}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      thumbsUpCount.textContent = data.thumbsUp || 0;
+      thumbsDownCount.textContent = data.thumbsDown || 0;
+      currentRating = data.userRating || null;
+      updateRatingUI();
+    } catch (err) {
+      console.error('Failed to fetch ratings:', err);
+    }
+  }
+
+  function updateRatingUI() {
+    thumbsUpBtn.classList.toggle('active', currentRating === 1);
+    thumbsDownBtn.classList.toggle('active', currentRating === -1);
+  }
 
   // ── Status ───────────────────────────────────────────────────
   function setStatus(msg, loading = false, error = false) {
@@ -807,6 +922,13 @@
     npWidget.style.transition = 'opacity 0.3s';
 
     setTimeout(() => {
+      // Update album art
+      if (track.title) {
+        npIcon.innerHTML = '<img src="/cover.jpg" alt="Album art" onerror="this.parentElement.innerHTML=\'<svg viewBox=&quot;0 0 24 24&quot; fill=&quot;currentColor&quot;><path d=&quot;M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z&quot;/></svg>\'">';
+      } else {
+        npIcon.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg>';
+      }
+
       if (track.title) {
         npTitle.textContent = track.title;
         npTitle.classList.remove('np-placeholder');
@@ -819,6 +941,16 @@
       npArtist.textContent  = track.artist || '';
       npElapsed.textContent = track.startedAt ? formatElapsed(track.startedAt) : '';
       npWidget.style.opacity = '1';
+
+      // Fetch ratings for the new track
+      if (track.title) {
+        fetchRatings();
+      } else {
+        thumbsUpCount.textContent = '0';
+        thumbsDownCount.textContent = '0';
+        currentRating = null;
+        updateRatingUI();
+      }
     }, 300);
 
     clearInterval(elapsedTimer);
@@ -908,6 +1040,14 @@
   });
 
   stopBtn.addEventListener('click', stopStream);
+
+  thumbsUpBtn.addEventListener('click', () => {
+    submitRating(currentRating === 1 ? null : 1);
+  });
+
+  thumbsDownBtn.addEventListener('click', () => {
+    submitRating(currentRating === -1 ? null : -1);
+  });
 
   audio.addEventListener('playing', () => { setPlayingState(true); setStatus('Live'); spinner.classList.remove('visible'); });
   audio.addEventListener('waiting', () => setStatus('Buffering…', true));

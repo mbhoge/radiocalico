@@ -22,6 +22,16 @@ db.exec(`
     artist    TEXT,
     played_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE TABLE IF NOT EXISTS ratings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL,
+    track_title TEXT NOT NULL,
+    track_artist TEXT,
+    rating INTEGER NOT NULL CHECK (rating IN (1, -1)),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(session_id, track_title, track_artist)
+  );
 `);
 
 module.exports = db;
