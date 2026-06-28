@@ -340,12 +340,14 @@
     if (Hls.isSupported()) {
       hls = new Hls({
         enableWorker: true,
-        lowLatencyMode: false,
-        maxBufferLength: 30,
-        maxMaxBufferLength: 60,
-        maxBufferSize: 60 * 1000 * 1000,
-        maxBufferHole: 0.5,
-        defaultAudioCodec: 'mp4a.40.2'
+        lowLatencyMode: true,
+        maxBufferLength: 10,
+        maxMaxBufferLength: 20,
+        maxBufferSize: 20 * 1000 * 1000,
+        maxBufferHole: 0.25,
+        maxBackBufferLength: 90,
+        defaultAudioCodec: 'mp4a.40.2',
+        testBandwidth: false
       });
       hls.loadSource(STREAM);
       hls.attachMedia(audio);
@@ -373,13 +375,17 @@
 
       hls.on(Hls.Events.ERROR, (_, data) => {
         console.error('HLS Error:', data.type, data.details);
-        if (data.type === 'bufferAppendError' || data.type === 'bufferCreateError') {
+        if (data.type === 'bufferAppendError' || data.type === 'bufferCreateError' || data.type === 'fragLoadError') {
           handleBufferingFailure();
         } else if (data.fatal) {
           setPlayingState(false);
           setStatus('Stream error — retrying in 3s', false, true);
           setTimeout(startStream, 3000);
         }
+      });
+
+      hls.on(Hls.Events.FRAG_LOADED, (_, data) => {
+        bufferingRetries = 0;
       });
     } else if (audio.canPlayType('application/vnd.apple.mpegurl')) {
       audio.src = STREAM;
