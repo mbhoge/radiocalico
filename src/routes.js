@@ -2,6 +2,7 @@ const express = require('express');
 const db = require('./db');
 
 const router = express.Router();
+let hlsStream = null;
 
 let nowPlaying = { title: null, artist: null, startedAt: null };
 
@@ -29,6 +30,12 @@ router.post('/now-playing', (req, res) => {
   }
 
   nowPlaying = { title, artist: artist || null, startedAt: new Date().toISOString() };
+
+  // Update HLS stream metadata
+  if (hlsStream) {
+    hlsStream.setTrack(title, artist || 'Unknown Artist');
+  }
+
   res.json(nowPlaying);
 });
 
@@ -82,5 +89,9 @@ router.post('/users', (req, res) => {
     throw err;
   }
 });
+
+router.setHLSStream = (stream) => {
+  hlsStream = stream;
+};
 
 module.exports = router;
