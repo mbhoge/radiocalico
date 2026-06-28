@@ -11,6 +11,25 @@ const hlsStream = new HLSStreamGenerator();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
+// Serve branding assets
+app.get('/logo.png', (req, res) => {
+  const logoPath = path.join(__dirname, '..', 'RadioCalicoLogoTM.png');
+  if (fs.existsSync(logoPath)) {
+    res.sendFile(logoPath);
+  } else {
+    res.status(404).send('Logo not found');
+  }
+});
+
+app.get('/layout.png', (req, res) => {
+  const layoutPath = path.join(__dirname, '..', 'RadioCalicoLayout.png');
+  if (fs.existsSync(layoutPath)) {
+    res.sendFile(layoutPath);
+  } else {
+    res.status(404).send('Layout reference not found');
+  }
+});
+
 // Serve a placeholder cover image if one doesn't exist
 app.get('/cover.jpg', (req, res) => {
   const coverPath = path.join(__dirname, '..', 'public', 'cover.jpg');

@@ -54,6 +54,18 @@
       background: rgba(0,0,0,0.3);
     }
 
+    .logo-container {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo {
+      height: 40px;
+      width: auto;
+      object-fit: contain;
+    }
+
     .wordmark {
       font-size: 1.5rem;
       font-weight: 400;
@@ -691,7 +703,10 @@
 <div class="page">
 
   <header>
-    <div class="wordmark">Radiocalico</div>
+    <div class="logo-container">
+      <img src="/logo.png" alt="Radiocalico Logo" class="logo">
+      <div class="wordmark">Radiocalico</div>
+    </div>
     <div class="live-badge">
       <div class="live-dot"></div>
       Live Stream
