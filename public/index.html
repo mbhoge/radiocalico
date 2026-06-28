@@ -849,9 +849,14 @@
 
   // ── Ratings ──────────────────────────────────────────────────
   async function submitRating(ratingValue) {
-    if (!track.title) return;
+    console.log('submitRating called with:', ratingValue, 'track.title:', track.title);
+    if (!track.title) {
+      console.log('No track title, returning early');
+      return;
+    }
     try {
-      await fetch('/api/rate', {
+      console.log('Sending rating to server...');
+      const response = await fetch('/api/rate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -861,6 +866,8 @@
           rating: ratingValue
         })
       });
+      const data = await response.json();
+      console.log('Rating response:', data);
       currentRating = ratingValue;
       updateRatingUI();
       await fetchRatings();
@@ -870,11 +877,16 @@
   }
 
   async function fetchRatings() {
-    if (!track.title) return;
+    if (!track.title) {
+      console.log('fetchRatings: no track title');
+      return;
+    }
     try {
       const url = `/api/ratings/${encodeURIComponent(track.title)}?sessionId=${encodeURIComponent(sessionId)}&artist=${encodeURIComponent(track.artist || '')}`;
+      console.log('Fetching ratings from:', url);
       const res = await fetch(url);
       const data = await res.json();
+      console.log('Ratings data:', data);
       thumbsUpCount.textContent = data.thumbsUp || 0;
       thumbsDownCount.textContent = data.thumbsDown || 0;
       currentRating = data.userRating || null;
@@ -916,6 +928,7 @@
   function applyTrack(next) {
     const changed = next.title !== track.title || next.artist !== track.artist;
     if (!changed && track.title) return;
+    console.log('applyTrack:', { next, changed, currentTrack: track });
     track = next;
 
     npWidget.style.opacity = '0';
@@ -1042,11 +1055,13 @@
   stopBtn.addEventListener('click', stopStream);
 
   thumbsUpBtn.addEventListener('click', () => {
-    submitRating(currentRating === 1 ? null : 1);
+    console.log('Thumbs up clicked. Current track:', track);
+    submitRating(1);
   });
 
   thumbsDownBtn.addEventListener('click', () => {
-    submitRating(currentRating === -1 ? null : -1);
+    console.log('Thumbs down clicked. Current track:', track);
+    submitRating(-1);
   });
 
   audio.addEventListener('playing', () => { setPlayingState(true); setStatus('Live'); spinner.classList.remove('visible'); });
