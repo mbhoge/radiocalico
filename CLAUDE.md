@@ -20,6 +20,31 @@ curl -X POST http://localhost:3000/api/now-playing \
   -d '{"title":"Test Song","artist":"Test Artist"}'
 ```
 
+## Project Structure
+
+```
+src/              Backend Node.js/Express code
+  ├── server.js       Express app, HLS/branding/static routes
+  ├── routes.js       API endpoints (/api/*)
+  ├── db.js           SQLite setup and schema
+  └── hls-stream.js   HLS segment generation with ID3 metadata
+
+public/           Frontend assets (served as static files)
+  ├── index.html      Player UI, ~400 lines (markup + JS)
+  └── style.css       Styling, ~700 lines (animations, layout, responsive)
+
+db/               Data storage
+  └── radiocalico.db  SQLite database (auto-created)
+
+Root files:
+  ├── CLAUDE.md       This guidance document
+  ├── README.md       User-facing project description
+  ├── package.json    Dependencies and scripts
+  ├── RadioCalicoLogoTM.png      Branding asset (served at /logo.png)
+  ├── RadioCalicoLayout.png       Reference design (served at /layout.png)
+  └── RadioCalico_Style_Guide.txt Branding guidelines
+```
+
 ## Architecture Overview
 
 Radiocalico is a live radio streaming application with a rating system. The backend generates HLS streams with embedded ID3 metadata, serves a REST API for ratings and track management, and persists data in SQLite. The frontend streams audio via HLS.js, displays track metadata via ID3 tags or API polling, and manages user ratings per session.
@@ -33,14 +58,19 @@ Radiocalico is a live radio streaming application with a rating system. The back
 5. **Rating Submission**: User clicks thumbs up/down → `POST /api/rate` with sessionId, title, artist, rating (1 or -1)
 6. **Rating Display**: Frontend fetches counts via `GET /api/ratings/:title?sessionId=X&artist=Y`
 
+## Style Guide
+- Text verion of the styling guide for the webpage is at the /home/marcus/radiocalico/RadioCalico_Style_Guide.txt file. It includes color palette, font sizes, and layout rules.
+- The Radio Calico logo if at /home/mbhoge/radicalico/RadioCalico_Logo.png. It is a vector image and can be scaled to any size without losing quality. Use it in the header and footer of the webpage, and in promotional materials.
+
 ## Key Components
 
 ### Backend
 
 **`src/server.js`** — Express app entry point
 - Initializes HLS stream generator and routes
-- Serves static files (public/index.html) and cover.jpg
+- Serves static files from `public/` (index.html, style.css, cover.jpg, logo.png)
 - Registers HLS endpoints (`/live.m3u8`, `/segment-*.ts`)
+- Registers branding asset endpoints (`/logo.png`, `/layout.png`)
 - Mounts API routes at `/api`
 
 **`src/hls-stream.js`** — HLS segment generation with ID3 metadata
@@ -65,17 +95,29 @@ Radiocalico is a live radio streaming application with a rating system. The back
 
 ### Frontend
 
-**`public/index.html`** — Single-page radio player (1100+ lines)
+**`public/index.html`** — Single-page radio player (~400 lines)
+- HTML markup and inline JavaScript
+- Links to external stylesheet (`<link rel="stylesheet" href="/style.css">`)
+- Loads HLS.js library from CDN
+- Embeds player audio element and script for stream handling
 
-Key script sections:
-- **HLS Stream Setup** (~line 975): Initializes HLS.js with local stream `/live.m3u8`, handles fatal errors with 3-second retry
-- **Metadata Parsing** (~line 983-1000): Reads ID3 tags (TIT2, TPE1) from HLS stream FRAG_PARSING_METADATA event
-- **Polling Fallback** (~line 1059-1064): Every 15 seconds, polls `/api/now-playing` to get current track if stream metadata unavailable
-- **Rating System** (~line 850-920):
+**`public/style.css`** — All styling (~700 lines)
+- CSS custom properties (--gold, --gold-light, --dark, --card, --text, --muted)
+- Layout: header, main content (flexbox grid), footer with ticker
+- Components: player card, now-playing widget, rating buttons, recently-played list
+- Animations: pulse (live dot), spin (vinyl), marquee (scrolling text), bar (visualizer), ticker (footer)
+- Responsive design: hides side images on screens <860px wide
+- Album art styling: 40px icon with fallback to music note SVG
+
+Key script sections in index.html:
+- **HLS Stream Setup** (~line 295): Initializes HLS.js with local stream `/live.m3u8`, handles fatal errors with 3-second retry
+- **Metadata Parsing** (~line 303-320): Reads ID3 tags (TIT2, TPE1) from HLS stream FRAG_PARSING_METADATA event
+- **Polling Fallback** (~line 379-384): Every 15 seconds, polls `/api/now-playing` to get current track if stream metadata unavailable
+- **Rating System** (~line 170-240):
   - `submitRating(value)`: POST to `/api/rate` with current sessionId, track title/artist, rating (1 or -1)
   - `fetchRatings()`: GET `/api/ratings/:title` to display thumbs up/down counts and user's current rating
   - `updateRatingUI()`: Toggles `.active` class on buttons based on `currentRating`
-- **Session Management** (~line 841-848): Generates unique session ID stored in localStorage; persists across page reloads
+- **Session Management** (~line 161-168): Generates unique session ID stored in localStorage; persists across page reloads
 
 Key UI elements:
 - Now Playing widget: Shows album art (cover.jpg), track title/artist, elapsed time, and rating buttons (👍 👎)
