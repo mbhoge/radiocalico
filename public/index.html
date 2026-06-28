@@ -45,7 +45,7 @@
       <div class="player-body">
         <div class="station-label">Now Streaming</div>
         <div class="station-title">Radiocalico</div>
-        <div class="station-sub">Lossless HLS &bull; 24 / 7 Live Radio</div>
+        <div class="station-sub" id="stationSub">Connecting…</div>
 
         <!-- Now Playing widget -->
         <div class="now-playing" id="nowPlaying">
@@ -158,6 +158,7 @@
   const thumbsDownBtn = document.getElementById('thumbsDownBtn');
   const thumbsUpCount = document.getElementById('thumbsUpCount');
   const thumbsDownCount = document.getElementById('thumbsDownCount');
+  const stationSub = document.getElementById('stationSub');
 
   let hls          = null;
   let isPlaying    = false;
@@ -231,6 +232,12 @@
     statusText.textContent = msg;
     spinner.classList.toggle('visible', loading);
     statusBar.className = 'status-bar' + (error ? ' error' : '');
+  }
+
+  function updateStreamQuality(quality) {
+    const qualityText = quality || 'Lossless HLS';
+    const availabilityText = '24 / 7 Live Radio';
+    stationSub.textContent = qualityText + ' • ' + availabilityText;
   }
 
   function setPlayingState(state) {
@@ -307,13 +314,41 @@
     audio.load();
   }
 
+  let bufferingRetries = 0;
+  const maxBufferingRetries = 3;
+
+  function handleBufferingFailure() {
+    if (bufferingRetries < maxBufferingRetries) {
+      bufferingRetries++;
+      console.warn(`Buffering issue detected, retry ${bufferingRetries}/${maxBufferingRetries}`);
+      setStatus(`Buffering issue — retrying (${bufferingRetries}/${maxBufferingRetries})`, true);
+      setTimeout(() => {
+        if (hls) hls.recoverLevel();
+      }, 1000);
+    } else {
+      setStatus('Persistent buffering issue — stream error', false, true);
+      setTimeout(startStream, 3000);
+    }
+  }
+
   function startStream() {
     destroyHls();
+    bufferingRetries = 0;
     setStatus('Connecting…', true);
     applyTrack({ title: null, artist: null, startedAt: null });
 
     if (Hls.isSupported()) {
-      hls = new Hls({ enableWorker: true, lowLatencyMode: false });
+      hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: true,
+        maxBufferLength: 10,
+        maxMaxBufferLength: 20,
+        maxBufferSize: 20 * 1000 * 1000,
+        maxBufferHole: 0.25,
+        maxBackBufferLength: 90,
+        defaultAudioCodec: 'mp4a.40.2',
+        testBandwidth: false
+      });
       hls.loadSource(STREAM);
       hls.attachMedia(audio);
 
@@ -332,21 +367,30 @@
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         audio.volume = volumeEl.value;
+        updateStreamQuality('Lossless HLS');
         audio.play()
           .then(() => setStatus('Live'))
           .catch(() => { setPlayingState(false); setStatus('Click play to listen'); });
       });
 
       hls.on(Hls.Events.ERROR, (_, data) => {
-        if (data.fatal) {
+        console.error('HLS Error:', data.type, data.details);
+        if (data.type === 'bufferAppendError' || data.type === 'bufferCreateError' || data.type === 'fragLoadError') {
+          handleBufferingFailure();
+        } else if (data.fatal) {
           setPlayingState(false);
           setStatus('Stream error — retrying in 3s', false, true);
           setTimeout(startStream, 3000);
         }
       });
+
+      hls.on(Hls.Events.FRAG_LOADED, (_, data) => {
+        bufferingRetries = 0;
+      });
     } else if (audio.canPlayType('application/vnd.apple.mpegurl')) {
       audio.src = STREAM;
       audio.volume = volumeEl.value;
+      updateStreamQuality('Lossless HLS');
       audio.play()
         .then(() => setStatus('Live'))
         .catch(() => { setPlayingState(false); setStatus('Click play to listen'); });
@@ -389,10 +433,34 @@
     submitRating(-1);
   });
 
-  audio.addEventListener('playing', () => { setPlayingState(true); setStatus('Live'); spinner.classList.remove('visible'); });
-  audio.addEventListener('waiting', () => setStatus('Buffering…', true));
-  audio.addEventListener('pause',   () => setPlayingState(false));
-  audio.addEventListener('ended',   () => { setPlayingState(false); setStatus('Stream ended'); });
+  let bufferingTimeout = null;
+
+  audio.addEventListener('playing', () => {
+    setPlayingState(true);
+    setStatus('Live');
+    spinner.classList.remove('visible');
+    if (bufferingTimeout) clearTimeout(bufferingTimeout);
+    bufferingRetries = 0;
+  });
+
+  audio.addEventListener('waiting', () => {
+    setStatus('Buffering…', true);
+    if (bufferingTimeout) clearTimeout(bufferingTimeout);
+    bufferingTimeout = setTimeout(() => {
+      handleBufferingFailure();
+    }, 5000);
+  });
+
+  audio.addEventListener('pause',   () => {
+    setPlayingState(false);
+    if (bufferingTimeout) clearTimeout(bufferingTimeout);
+  });
+
+  audio.addEventListener('ended',   () => {
+    setPlayingState(false);
+    setStatus('Stream ended');
+    if (bufferingTimeout) clearTimeout(bufferingTimeout);
+  });
 
   volumeEl.addEventListener('input', () => { audio.volume = volumeEl.value; });
 
@@ -450,6 +518,9 @@
 
   fetchRecentlyPlayed();
   setInterval(fetchRecentlyPlayed, 15000);
+
+  // Initialize stream quality display
+  updateStreamQuality(null);
 
   // Auto-start
   startStream();
