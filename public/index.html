@@ -314,13 +314,39 @@
     audio.load();
   }
 
+  let bufferingRetries = 0;
+  const maxBufferingRetries = 3;
+
+  function handleBufferingFailure() {
+    if (bufferingRetries < maxBufferingRetries) {
+      bufferingRetries++;
+      console.warn(`Buffering issue detected, retry ${bufferingRetries}/${maxBufferingRetries}`);
+      setStatus(`Buffering issue — retrying (${bufferingRetries}/${maxBufferingRetries})`, true);
+      setTimeout(() => {
+        if (hls) hls.recoverLevel();
+      }, 1000);
+    } else {
+      setStatus('Persistent buffering issue — stream error', false, true);
+      setTimeout(startStream, 3000);
+    }
+  }
+
   function startStream() {
     destroyHls();
+    bufferingRetries = 0;
     setStatus('Connecting…', true);
     applyTrack({ title: null, artist: null, startedAt: null });
 
     if (Hls.isSupported()) {
-      hls = new Hls({ enableWorker: true, lowLatencyMode: false });
+      hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: false,
+        maxBufferLength: 30,
+        maxMaxBufferLength: 60,
+        maxBufferSize: 60 * 1000 * 1000,
+        maxBufferHole: 0.5,
+        defaultAudioCodec: 'mp4a.40.2'
+      });
       hls.loadSource(STREAM);
       hls.attachMedia(audio);
 
@@ -346,7 +372,10 @@
       });
 
       hls.on(Hls.Events.ERROR, (_, data) => {
-        if (data.fatal) {
+        console.error('HLS Error:', data.type, data.details);
+        if (data.type === 'bufferAppendError' || data.type === 'bufferCreateError') {
+          handleBufferingFailure();
+        } else if (data.fatal) {
           setPlayingState(false);
           setStatus('Stream error — retrying in 3s', false, true);
           setTimeout(startStream, 3000);
@@ -398,10 +427,34 @@
     submitRating(-1);
   });
 
-  audio.addEventListener('playing', () => { setPlayingState(true); setStatus('Live'); spinner.classList.remove('visible'); });
-  audio.addEventListener('waiting', () => setStatus('Buffering…', true));
-  audio.addEventListener('pause',   () => setPlayingState(false));
-  audio.addEventListener('ended',   () => { setPlayingState(false); setStatus('Stream ended'); });
+  let bufferingTimeout = null;
+
+  audio.addEventListener('playing', () => {
+    setPlayingState(true);
+    setStatus('Live');
+    spinner.classList.remove('visible');
+    if (bufferingTimeout) clearTimeout(bufferingTimeout);
+    bufferingRetries = 0;
+  });
+
+  audio.addEventListener('waiting', () => {
+    setStatus('Buffering…', true);
+    if (bufferingTimeout) clearTimeout(bufferingTimeout);
+    bufferingTimeout = setTimeout(() => {
+      handleBufferingFailure();
+    }, 5000);
+  });
+
+  audio.addEventListener('pause',   () => {
+    setPlayingState(false);
+    if (bufferingTimeout) clearTimeout(bufferingTimeout);
+  });
+
+  audio.addEventListener('ended',   () => {
+    setPlayingState(false);
+    setStatus('Stream ended');
+    if (bufferingTimeout) clearTimeout(bufferingTimeout);
+  });
 
   volumeEl.addEventListener('input', () => { audio.volume = volumeEl.value; });
 
