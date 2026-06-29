@@ -14,6 +14,7 @@
   },
   "jest": {
     "testEnvironment": "node",
+    "setupFilesAfterEnv": ["<rootDir>/tests/setup.js"],
     "collectCoverageFrom": [
       "src/**/*.js",
       "!src/hls-stream.js"
