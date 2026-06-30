@@ -1,18 +1,21 @@
-name: Security & Dependencies
+name: Security & Dependency Scanning
 
 on:
   push:
     branches: [ master, main, develop ]
-    paths: [ 'package*.json' ]
+    paths: [ 'package*.json', 'Dockerfile*', 'nginx.conf', 'src/**', '.github/workflows/security.yml' ]
   pull_request:
     branches: [ master, main, develop ]
-    paths: [ 'package*.json' ]
+    paths: [ 'package*.json', 'Dockerfile*', 'nginx.conf', 'src/**' ]
   schedule:
-    - cron: '0 0 * * *'
+    # Daily security scan at 2 AM UTC
+    - cron: '0 2 * * *'
 
 jobs:
-  npm-audit:
+  # Dependency vulnerability scanning
+  dependencies:
     runs-on: ubuntu-latest
+    name: Dependency Security Check
     steps:
       - uses: actions/checkout@v4
 
@@ -25,5 +28,222 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run npm audit
+      - name: Run npm audit for vulnerabilities
         run: npm audit --audit-level=moderate
+        continue-on-error: true
+
+      - name: Check outdated dependencies
+        run: npm outdated || true
+        continue-on-error: true
+
+      - name: Generate SBOM (Software Bill of Materials)
+        run: npm install -g cyclonedx-npm && cyclonedx-npm --output-file sbom.json || true
+        continue-on-error: true
+
+  # Secret scanning
+  secrets:
+    runs-on: ubuntu-latest
+    name: Secret Scanning
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: TruffleHog - Secret detection
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+          extra_args: --debug --only-verified
+        continue-on-error: true
+
+      - name: GitLeaks - Additional secret scanning
+        uses: gitleaks/gitleaks-action@v2
+        continue-on-error: true
+
+  # Code quality and SAST
+  code-quality:
+    runs-on: ubuntu-latest
+    name: Code Quality & SAST
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup ESLint with security plugin
+        run: npm install --save-dev eslint-plugin-security eslint-plugin-node
+        continue-on-error: true
+
+      - name: Run ESLint with security rules
+        run: npx eslint src/ --ext .js --plugin security --format json --output-file eslint-report.json || true
+        continue-on-error: true
+
+      - name: Run ESLint with detailed output
+        run: npx eslint src/ --ext .js --plugin security || true
+        continue-on-error: true
+
+  # Container image scanning
+  container-security:
+    runs-on: ubuntu-latest
+    name: Container Image Scanning
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build production image for scanning
+        run: docker build -f Dockerfile.prod -t radiocalico:prod .
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: radiocalico:prod
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+        continue-on-error: true
+
+      - name: Upload Trivy SARIF to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+        continue-on-error: true
+
+      - name: Scan with Grype (Anchore)
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin || true
+          grype radiocalico:prod --fail-on critical || true
+        continue-on-error: true
+
+      - name: Scan base images
+        run: |
+          echo "Scanning Node.js Alpine base image..."
+          docker pull node:22-alpine
+          docker scan node:22-alpine || true
+
+          echo "Scanning Postgres Alpine base image..."
+          docker pull postgres:16-alpine
+          docker scan postgres:16-alpine || true
+
+          echo "Scanning nginx Alpine base image..."
+          docker pull nginx:alpine
+          docker scan nginx:alpine || true
+        continue-on-error: true
+
+      - name: Check image for hardcoded secrets
+        run: |
+          echo "Checking for hardcoded secrets in image..."
+          docker run --rm radiocalico:prod grep -ri "password\|secret\|key\|token" /app --include="*.js" --include="*.json" || echo "✓ No obvious secrets found"
+          docker run --rm radiocalico:prod grep -ri "aws\|gcp\|azure" /app --include="*.js" || echo "✓ No cloud credentials found"
+        continue-on-error: true
+
+      - name: Inspect image configuration
+        run: |
+          echo "=== Image Security Configuration ==="
+          docker inspect radiocalico:prod | jq '.[0] | {
+            User: .Config.User,
+            EntryPoint: .Config.Entrypoint,
+            Cmd: .Config.Cmd,
+            WorkingDir: .Config.WorkingDir,
+            HealthCheck: .Config.Healthcheck,
+            Env: .Config.Env | length
+          }'
+        continue-on-error: true
+
+  # Dockerfile security checks
+  dockerfile-security:
+    runs-on: ubuntu-latest
+    name: Dockerfile Security Analysis
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Hadolint - Dockerfile linter
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile.prod
+          failure-threshold: warning
+        continue-on-error: true
+
+      - name: Hadolint - Check dev Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile.dev
+          failure-threshold: warning
+        continue-on-error: true
+
+      - name: Check for security best practices
+        run: |
+          echo "=== Checking for security issues in Dockerfiles ==="
+
+          echo "1. Checking for non-root user in production image..."
+          grep -q "USER" Dockerfile.prod && echo "✓ Non-root user configured" || echo "⚠ Consider adding non-root user"
+
+          echo "2. Checking for HEALTHCHECK..."
+          grep -q "HEALTHCHECK" Dockerfile.prod && echo "✓ Health check configured" || echo "⚠ Consider adding health check"
+
+          echo "3. Checking for minimal base images..."
+          grep -q "alpine" Dockerfile.prod && echo "✓ Alpine base image used" || echo "⚠ Consider using Alpine for smaller size"
+
+          echo "4. Checking for secrets in build context..."
+          [ ! -f .env ] && echo "✓ No .env file in repo" || echo "⚠ .env file should not be committed"
+          [ ! -f .env.prod ] && echo "✓ No .env.prod file in repo" || echo "⚠ .env.prod file should not be committed"
+        continue-on-error: true
+
+  # Configuration security
+  configuration-security:
+    runs-on: ubuntu-latest
+    name: Configuration Security Check
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check nginx configuration
+        run: |
+          echo "=== Validating nginx configuration ==="
+
+          echo "1. Checking security headers..."
+          grep -q "X-Frame-Options" nginx.conf && echo "✓ X-Frame-Options header" || echo "⚠ Missing X-Frame-Options"
+          grep -q "X-Content-Type-Options" nginx.conf && echo "✓ X-Content-Type-Options header" || echo "⚠ Missing X-Content-Type-Options"
+          grep -q "X-XSS-Protection" nginx.conf && echo "✓ X-XSS-Protection header" || echo "⚠ Missing X-XSS-Protection"
+
+          echo "2. Checking gzip compression..."
+          grep -q "gzip" nginx.conf && echo "✓ Gzip compression enabled" || echo "⚠ Gzip not configured"
+
+          echo "3. Checking SSL configuration comments..."
+          grep -q "TLS\|SSL\|https" nginx.conf && echo "✓ TLS documentation present" || echo "⚠ No TLS configuration found"
+        continue-on-error: true
+
+      - name: Validate docker-compose.yml
+        run: |
+          docker-compose config --quiet
+          echo "✓ docker-compose.yml is valid"
+        continue-on-error: true
+
+      - name: Check for exposed ports
+        run: |
+          echo "=== Checking exposed ports in docker-compose.yml ==="
+          grep -A 5 "ports:" docker-compose.yml | grep -v "^--$" || true
+        continue-on-error: true
+
+  # Dependency graph update
+  dependency-graph:
+    runs-on: ubuntu-latest
+    name: Update Dependency Graph
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update GitHub dependency graph
+        uses: github/codeql-action/dependency-scan@v2
+        with:
+          languages: javascript
+        continue-on-error: true

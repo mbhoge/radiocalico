@@ -93,7 +93,45 @@ jobs:
       - name: Stop server
         run: pkill -f "node src/server.js" || true
 
-  # Docker build validation
+  # Security scanning
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run npm audit (security vulnerabilities)
+        run: npm audit --audit-level=moderate
+        continue-on-error: true
+
+      - name: Check for hardcoded secrets
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+        continue-on-error: true
+
+      - name: SAST - ESLint with security rules
+        run: |
+          npm install --save-dev eslint-plugin-security
+          npx eslint src/ --ext .js --plugin security --format json --output-file eslint-report.json || true
+          cat eslint-report.json | head -50
+        continue-on-error: true
+
+      - name: Dependency check with npm
+        run: npm list
+        continue-on-error: true
+
+  # Docker image security scanning
   docker:
     runs-on: ubuntu-latest
     steps:
@@ -113,6 +151,50 @@ jobs:
 
       - name: Verify production image
         run: docker run --rm radiocalico:prod node --version
+
+      - name: Run Trivy vulnerability scanner on dev image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: radiocalico:dev
+          format: 'sarif'
+          output: 'trivy-dev-results.sarif'
+          severity: 'CRITICAL,HIGH'
+        continue-on-error: true
+
+      - name: Run Trivy vulnerability scanner on prod image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: radiocalico:prod
+          format: 'sarif'
+          output: 'trivy-prod-results.sarif'
+          severity: 'CRITICAL,HIGH'
+        continue-on-error: true
+
+      - name: Scan production image with Grype
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin || true
+          grype radiocalico:prod --fail-on high || true
+        continue-on-error: true
+
+      - name: Check image layers with Dive
+        run: |
+          curl -sSfL https://github.com/wagoodman/dive/releases/download/v0.10.0/dive_0.10.0_linux_amd64.tar.gz | tar xz -C /tmp
+          /tmp/dive radiocalico:prod --ci || true
+        continue-on-error: true
+
+      - name: Validate image configuration
+        run: |
+          echo "=== Development Image Info ==="
+          docker inspect radiocalico:dev | jq '.[0].Config | {User, Env, Cmd}'
+
+          echo "=== Production Image Info ==="
+          docker inspect radiocalico:prod | jq '.[0].Config | {User, Env, Cmd}'
+        continue-on-error: true
+
+      - name: Check for secrets in Docker images
+        run: |
+          docker run --rm radiocalico:prod grep -r "password\|secret\|key\|token" . 2>/dev/null || echo "No obvious secrets found"
+        continue-on-error: true
 
   # Production stack validation
   docker-compose:
