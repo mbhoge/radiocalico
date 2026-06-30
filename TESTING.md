@@ -2,7 +2,16 @@
 
 ## Overview
 
-This document describes the unit testing framework for the Radiocalico rating system. The framework is implemented in phases, with Phase 1 (backend tests) now complete.
+This document describes the comprehensive testing framework for Radiocalico, covering unit tests, integration tests, and Docker deployment validation. The framework supports both development (SQLite) and production (PostgreSQL) environments.
+
+### Test Coverage
+
+- **Backend API Tests**: Express route handlers, request validation, error handling
+- **Database Tests**: SQLite (dev) and PostgreSQL (prod) operations
+- **Frontend Tests**: Browser-based rating system, session management
+- **Integration Tests**: Full API workflows, database persistence
+- **Docker Tests**: Container build validation, multi-service orchestration
+- **CI/CD Tests**: Automated testing on push/PR to master/main/develop
 
 ## Phase 1: Backend Unit Tests ✅ COMPLETE
 
@@ -110,15 +119,157 @@ npm test -- tests/routes.rating.test.js
 ### CI/CD Integration
 
 GitHub Actions automatically runs tests on:
-- Every push to `master`
+- Every push to `master`, `main`, `develop`
 - Every pull request
 - Test runs on Node.js 18.x and 20.x
 
 Tests run in this order:
-1. Unit tests (rating system)
-2. Coverage report generation
-3. Server startup validation
-4. API endpoint smoke tests
+1. Install build dependencies
+2. Unit tests (rating system)
+3. Coverage report generation
+4. Server startup validation
+5. API endpoint smoke tests (dev stack)
+6. Docker build validation
+7. Production stack tests
+
+---
+
+## Database Testing Strategy
+
+### Development Environment (SQLite)
+
+SQLite is used for **fast, in-memory testing** without external dependencies.
+
+**Test Setup:**
+```bash
+# Tests use in-memory SQLite by default
+npm test
+
+# Or with Docker container
+docker-compose exec radiocalico-dev npm test
+```
+
+**Advantages:**
+- Fast (in-memory)
+- No setup required
+- Easy to reset between tests
+- Suitable for CI/CD
+
+**Database Reset:**
+Each test file gets a fresh database via the Jest setup hook:
+- `tests/setup.js` initializes schema
+- Tests are isolated (separate connections)
+- After tests complete, database is discarded
+
+### Production Environment (PostgreSQL)
+
+PostgreSQL testing validates the **production database layer**.
+
+**Test Approaches:**
+
+1. **Docker Compose Testing:**
+   ```bash
+   # Start PostgreSQL service
+   docker-compose up -d radiocalico-db-postgres
+   
+   # Run tests against PostgreSQL
+   DB_HOST=localhost DB_PORT=5432 DB_NAME=test DB_USER=postgres npm test
+   
+   # Clean up
+   docker-compose down
+   ```
+
+2. **GitHub Actions Testing:**
+   - CI/CD runs a PostgreSQL service
+   - Tests run against both SQLite and PostgreSQL
+   - Schema validation for both databases
+
+**Test Coverage for PostgreSQL:**
+- Connection pooling behavior
+- Async query handling
+- UNIQUE constraint enforcement
+- Transaction handling
+- Connection timeout recovery
+
+### Dual-Database Testing
+
+**File Structure:**
+```
+tests/
+├── setup.js                 # Jest setup (SQLite in-memory)
+├── routes.rating.test.js    # Works with both SQLite & PostgreSQL
+├── db.rating.test.js        # SQLite-specific tests
+├── db.postgres.test.js      # PostgreSQL-specific tests (future)
+├── frontend/
+│   ├── rating.test.js
+│   └── session.test.js
+└── integration/
+    └── rating-flow.test.js
+```
+
+**Running Tests:**
+
+```bash
+# Development (SQLite in-memory)
+npm test
+
+# Development with coverage
+npm run test:coverage
+
+# Watch mode (auto-rerun)
+npm run test:watch
+
+# Backend tests only
+npm run test:backend
+
+# Rating system tests
+npm run test:rating
+
+# Test against PostgreSQL (manual)
+DB_HOST=localhost npm test -- --testNamePattern="postgres"
+
+# Docker: Test dev stack
+docker-compose exec radiocalico-dev npm test
+
+# Docker: Test prod stack (requires running services)
+docker-compose exec radiocalico-api npm test
+```
+
+**Continuous Integration:**
+
+GitHub Actions workflow (`.github/workflows/ci.yml`):
+1. Installs dependencies
+2. Runs unit tests (SQLite)
+3. Generates coverage report
+4. Validates development server (SQLite + Express)
+5. Tests API endpoints against dev server
+6. Validates Docker builds
+7. (Future) Tests production stack with PostgreSQL
+
+### Database Schema Consistency
+
+Both SQLite and PostgreSQL use the **same schema** to ensure consistency:
+
+**tables:**
+- `users` - User accounts
+- `played_tracks` - Track playback history
+- `ratings` - User ratings with UNIQUE constraint
+
+**Constraints:**
+- UNIQUE(session_id, track_title, track_artist) on ratings
+- CHECK(rating IN (1, -1)) on ratings
+- NOT NULL on required fields
+
+**Testing the Schema:**
+```bash
+# Verify SQLite schema
+sqlite3 db/radiocalico.db ".schema"
+
+# Verify PostgreSQL schema
+docker-compose exec radiocalico-db-postgres psql -U radiocalico -d radiocalico -c "\\dt"
+```
+
+---
 
 ## Phase 2: Frontend Unit Tests (Planned)
 

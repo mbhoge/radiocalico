@@ -7,9 +7,9 @@ on:
     branches: [ master, main, develop ]
 
 jobs:
+  # Unit tests and linting
   test:
     runs-on: ubuntu-latest
-
     strategy:
       matrix:
         node-version: [18.x, 20.x]
@@ -29,6 +29,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Check for security vulnerabilities
+        run: npm audit --audit-level=moderate
+        continue-on-error: true
+
       - name: Run unit tests (rating system)
         run: npm test -- tests/routes.rating.test.js tests/db.rating.test.js
 
@@ -36,12 +40,12 @@ jobs:
         run: npm run test:coverage -- tests/routes.rating.test.js tests/db.rating.test.js
         continue-on-error: true
 
-      - name: Start server
+      - name: Start development server
         run: node src/server.js &
         timeout-minutes: 1
 
       - name: Wait for server to start
-        run: sleep 2
+        run: sleep 3
 
       - name: Test health endpoint
         run: curl -f http://localhost:3000/api/health || exit 1
@@ -64,6 +68,13 @@ jobs:
         run: |
           curl -f "http://localhost:3000/api/ratings/Test%20Song?sessionId=test-session&artist=Test%20Artist" || exit 1
 
+      - name: Test rating update (change to thumbs down)
+        run: |
+          curl -X POST http://localhost:3000/api/rate \
+            -H "Content-Type: application/json" \
+            -d '{"sessionId":"test-session","title":"Test Song","artist":"Test Artist","rating":-1}' \
+            -f || exit 1
+
       - name: Test HLS manifest
         run: curl -f http://localhost:3000/live.m3u8 || exit 1
 
@@ -76,5 +87,95 @@ jobs:
           curl -f http://localhost:3000/style.css -o /dev/null || exit 1
           curl -f http://localhost:3000/logo.png -o /dev/null || exit 1
 
+      - name: Test recently-played endpoint
+        run: curl -f http://localhost:3000/api/recently-played || exit 1
+
       - name: Stop server
         run: pkill -f "node src/server.js" || true
+
+  # Docker build validation
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build development image
+        run: docker build -f Dockerfile.dev -t radiocalico:dev .
+
+      - name: Build production API image
+        run: docker build -f Dockerfile.prod -t radiocalico:prod .
+
+      - name: Verify development image
+        run: docker run --rm radiocalico:dev node --version
+
+      - name: Verify production image
+        run: docker run --rm radiocalico:prod node --version
+
+  # Production stack validation
+  docker-compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate docker-compose configuration
+        run: docker-compose config --quiet
+
+      - name: Build all services
+        run: docker-compose build
+
+      - name: Start development service
+        run: docker-compose up -d radiocalico-dev
+
+      - name: Wait for development service to start
+        run: sleep 5
+
+      - name: Test development service health
+        run: docker-compose exec -T radiocalico-dev curl -f http://localhost:3000/api/health
+
+      - name: Test development service API
+        run: |
+          docker-compose exec -T radiocalico-dev curl -X POST http://localhost:3000/api/now-playing \
+            -H "Content-Type: application/json" \
+            -d '{"title":"Docker Test","artist":"Test"}'
+
+      - name: Stop development service
+        run: docker-compose down
+
+      - name: Start production services
+        run: docker-compose up -d radiocalico-db-postgres radiocalico-api radiocalico-web
+
+      - name: Wait for production services to start
+        run: sleep 8
+
+      - name: Check PostgreSQL health
+        run: docker-compose exec -T radiocalico-db-postgres pg_isready -U radiocalico -d radiocalico
+
+      - name: Check API service health
+        run: docker-compose exec -T radiocalico-api curl -f http://localhost:3000/api/health
+
+      - name: Check nginx service health
+        run: docker-compose exec -T radiocalico-web curl -f http://localhost/health
+
+      - name: Test production stack health via nginx
+        run: docker-compose exec -T radiocalico-web curl -f http://localhost/health
+
+      - name: Test production API via nginx
+        run: |
+          docker-compose exec -T radiocalico-web curl -X POST http://radiocalico-api:3000/api/now-playing \
+            -H "Content-Type: application/json" \
+            -d '{"title":"Production Test","artist":"Test"}'
+
+      - name: Test ratings endpoint
+        run: |
+          docker-compose exec -T radiocalico-api curl -X POST http://localhost:3000/api/rate \
+            -H "Content-Type: application/json" \
+            -d '{"sessionId":"docker-test","title":"Production Test","artist":"Test","rating":1}'
+
+      - name: Verify PostgreSQL has data
+        run: docker-compose exec -T radiocalico-db-postgres psql -U radiocalico -d radiocalico -c "SELECT COUNT(*) FROM ratings;"
+
+      - name: Clean up
+        run: docker-compose down -v
