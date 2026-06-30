@@ -4,6 +4,27 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Quick Start
 
+### With Docker (Recommended)
+
+```bash
+# Production container (optimized, 198MB)
+docker-compose up radiocalico-prod
+# Server at http://localhost:3001
+
+# Development container (with nodemon hot-reload)
+docker-compose up radiocalico-dev
+# Server at http://localhost:3000
+
+# Both simultaneously
+docker-compose up
+# Dev: 3000 | Prod: 3001
+
+# View logs
+docker-compose logs -f radiocalico-dev
+```
+
+### Without Docker (Local Development)
+
 ```bash
 # Install dependencies
 npm install
@@ -36,6 +57,14 @@ public/           Frontend assets (served as static files)
 db/               Data storage
   └── radiocalico.db  SQLite database (auto-created)
 
+Docker/           Container configuration
+  ├── Dockerfile          Legacy production image (SQLite + Express)
+  ├── Dockerfile.prod     Production image (PostgreSQL API-only)
+  ├── Dockerfile.dev      Development image (with nodemon, 670MB)
+  ├── docker-compose.yml  Orchestrates dev & prod services
+  ├── nginx.conf          nginx reverse proxy config (production)
+  └── .dockerignore       Excludes files from Docker build context
+
 Root files:
   ├── CLAUDE.md       This guidance document
   ├── README.md       User-facing project description
@@ -48,6 +77,24 @@ Root files:
 ## Architecture Overview
 
 Radiocalico is a live radio streaming application with a rating system. The backend generates HLS streams with embedded ID3 metadata, serves a REST API for ratings and track management, and persists data in SQLite. The frontend streams audio via HLS.js, displays track metadata via ID3 tags or API polling, and manages user ratings per session.
+
+### Deployment Architecture
+
+The project includes a production-grade Docker setup with separate stacks for dev and prod:
+
+**Development (SQLite + Express):**
+- Single Node.js container with SQLite
+- Nodemon for hot-reload on file changes
+- Express serves API and static files
+- Volumes for local file binding
+
+**Production (PostgreSQL + nginx):**
+- PostgreSQL database (separate container)
+- Node.js API backend (API-only, no static serving)
+- nginx web server (reverse proxy, static caching, compression)
+- Health checks on all services
+- Auto-restart policy for resilience
+- Separation of concerns: web server vs. API server
 
 ### Data Flow
 
@@ -180,20 +227,59 @@ CREATE TABLE ratings (
 
 ## Common Tasks
 
+### Docker Quick Commands
+
+**Development (SQLite + Express):**
+```bash
+# Start development server (hot-reload on port 3000)
+docker-compose up radiocalico-dev
+
+# Run tests
+docker-compose exec radiocalico-dev npm test
+
+# View logs
+docker-compose logs -f radiocalico-dev
+```
+
+**Production (PostgreSQL + nginx):**
+```bash
+# Start production stack (PostgreSQL + API + nginx on port 3001)
+docker-compose up radiocalico-db-postgres radiocalico-api radiocalico-web
+
+# View logs
+docker-compose logs -f radiocalico-api
+docker-compose logs -f radiocalico-web
+
+# Access PostgreSQL directly (if needed)
+docker-compose exec radiocalico-db-postgres psql -U radiocalico -d radiocalico
+```
+
+**All Services:**
+```bash
+# Start all (dev and prod)
+docker-compose up
+
+# Stop all containers
+docker-compose down
+
+# Remove all including volumes (CAUTION: loses data)
+docker-compose down -v
+```
+
 **Test rating feature without external stream:**
 ```bash
 # Set a track
-curl -X POST http://localhost:3000/api/now-playing \
+curl -X POST http://localhost:3001/api/now-playing \
   -H "Content-Type: application/json" \
   -d '{"title":"Song Title","artist":"Artist Name"}'
 
 # Submit a rating
-curl -X POST http://localhost:3000/api/rate \
+curl -X POST http://localhost:3001/api/rate \
   -H "Content-Type: application/json" \
   -d '{"sessionId":"test-123","title":"Song Title","artist":"Artist Name","rating":1}'
 
 # Fetch ratings
-curl "http://localhost:3000/api/ratings/Song%20Title?sessionId=test-123&artist=Artist%20Name"
+curl "http://localhost:3001/api/ratings/Song%20Title?sessionId=test-123&artist=Artist%20Name"
 ```
 
 **Add album art:**
@@ -212,9 +298,79 @@ curl http://localhost:3000/segment-0.ts | xxd | head -20
 # Look for "ID3" at start, followed by "TIT2" and "TPE1" frames
 ```
 
+## Production PostgreSQL Setup
+
+### Architecture
+
+The production deployment separates concerns across three containers:
+
+1. **radiocalico-db-postgres** — PostgreSQL database
+   - Persistent volume: `radiocalico-db-postgres-data`
+   - Environment variables: `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`
+   - Health checks enabled (pg_isready)
+
+2. **radiocalico-api** — Node.js Express API backend
+   - Connects to PostgreSQL via environment variables
+   - Handles `/api/*` routes and HLS segments
+   - No static file serving (nginx handles that)
+   - Uses `src/db-postgres.js` for database connection pooling
+   - Uses `src/routes-postgres.js` for async PostgreSQL queries
+
+3. **radiocalico-web** — nginx reverse proxy and web server
+   - Serves static files from `public/` directory with caching
+   - Reverse proxies API requests to `radiocalico-api`
+   - Gzip compression for assets
+   - Security headers (X-Frame-Options, X-Content-Type-Options, etc.)
+   - Health checks via nginx
+
+### Key Files for Production
+
+- `Dockerfile.prod` — Production API image (Node.js Alpine)
+- `src/server-api.js` — API-only server entry point (no static serving)
+- `src/db-postgres.js` — PostgreSQL connection pool and schema initialization
+- `src/routes-postgres.js` — Async route handlers for PostgreSQL
+- `nginx.conf` — Reverse proxy and web server configuration
+
+### Environment Variables (Production)
+
+Set these in `docker-compose.yml` or `.env` file:
+
+```
+DB_HOST=radiocalico-db-postgres
+DB_PORT=5432
+DB_NAME=radiocalico
+DB_USER=radiocalico
+DB_PASSWORD=radiocalico  # Change in production!
+NODE_ENV=production
+```
+
+### Database Schema
+
+PostgreSQL uses the same schema as SQLite:
+
+- `users` — User accounts (legacy)
+- `played_tracks` — Track playback history
+- `ratings` — User ratings per track per session (UNIQUE constraint on session_id, track_title, track_artist)
+
+Indexes are created automatically for common queries.
+
+### Caching Strategy
+
+nginx caches assets aggressively:
+
+- Static files (.js, .css, .png, .jpg, etc.): 1 year (immutable)
+- HLS segments (.ts, .m3u8): 5 seconds
+- HTML files: 1 hour
+- Branding assets (/logo.png, /layout.png): 30 days
+
 ## Notes for Future Development
 
 - **Stream Quality**: Current HLS implementation generates placeholder MPEG-TS; for real audio, integrate ffmpeg or use an external stream with ID3 metadata
 - **Persistence**: Player volume persists per session; recently played tracks are archived to DB only when a new track starts playing
 - **UI Responsiveness**: Flex layout hides side images on screens <860px wide; works well on mobile but currently optimized for desktop
 - **Error Handling**: Stream errors trigger auto-retry every 3 seconds; verbose console logs help debugging (considered removing after stabilization)
+- **Multi-Instance Scaling**: Production setup with PostgreSQL supports horizontal scaling via Docker Swarm or Kubernetes
+- **Database Migrations**: Use a tool like Flyway or Liquibase for schema versioning in multi-instance deployments
+- **Registry Deployment**: Push production images to Docker registry (Docker Hub, ECR, GCR) with semantic versioning tags
+- **Secrets Management**: Use Docker Compose secrets or container orchestration secrets (not .env files) for production credentials
+- **TLS/HTTPS**: Add a reverse proxy (Traefik, HAProxy) or cloud load balancer for SSL/TLS termination

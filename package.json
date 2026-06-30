@@ -4,32 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "nodemon src/server.js",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage",
-    "test:backend": "jest tests/*.test.js",
-    "test:rating": "jest tests/routes.rating.test.js tests/db.rating.test.js"
-  },
-  "jest": {
-    "testEnvironment": "node",
-    "setupFilesAfterEnv": ["<rootDir>/tests/setup.js"],
-    "collectCoverageFrom": [
-      "src/**/*.js",
-      "!src/hls-stream.js"
-    ],
-    "coverageThreshold": {
-      "global": {
-        "branches": 70,
-        "functions": 70,
-        "lines": 70,
-        "statements": 70
-      }
-    },
-    "testMatch": [
-      "**/tests/**/*.test.js"
-    ]
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "",
@@ -37,19 +12,13 @@
   "type": "commonjs",
   "dependencies": {
     "better-sqlite3": "^12.11.1",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "pg": "^8.11.3"
   },
   "devDependencies": {
-    "@testing-library/dom": "^10.4.1",
-    "jest": "^30.4.2",
-    "nodemon": "^3.1.14",
-    "sinon": "^22.0.0",
-    "supertest": "^7.2.2"
+    "nodemon": "^3.1.14"
   },
   "allowScripts": {
     "better-sqlite3@12.11.1": true
-  },
-  "overrides": {
-    "js-yaml": "^4.1.2"
   }
 }

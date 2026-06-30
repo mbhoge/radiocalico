@@ -66,6 +66,11 @@ radiocalico/
 
 ### Prerequisites
 
+**Option A: Docker (Recommended for Deployment)**
+- Docker Engine 20.10+
+- Docker Compose 2.0+
+
+**Option B: Local Node.js**
 - Node.js 18 or higher
 - npm
 
@@ -74,12 +79,39 @@ radiocalico/
 ```bash
 git clone https://github.com/mbhoge/radiocalico.git
 cd radiocalico
-npm install
 ```
 
-### Running the Server
+### Running with Docker (Recommended)
+
+**Production (optimized build):**
+```bash
+docker-compose up radiocalico-prod
+# Server runs at http://localhost:3001
+```
+
+**Development (with hot-reload on file changes):**
+```bash
+docker-compose up radiocalico-dev
+# Server runs at http://localhost:3000
+# Code changes auto-reload via nodemon
+```
+
+**Run Both Simultaneously:**
+```bash
+docker-compose up
+# Dev: http://localhost:3000 | Prod: http://localhost:3001
+```
+
+**Stop All Containers:**
+```bash
+docker-compose down
+```
+
+### Running Locally (Without Docker)
 
 ```bash
+npm install
+
 # Production
 npm start
 
@@ -88,6 +120,84 @@ npm run dev
 ```
 
 The server starts at **http://localhost:3000**.
+
+### Database Persistence
+
+- **Docker**: Data persists in named volumes (`radiocalico-db-dev`, `radiocalico-db-prod`)
+- **Local**: Data stored in `db/radiocalico.db`
+
+To reset the database:
+```bash
+# With Docker
+docker volume rm radiocalico_radiocalico-db-prod  # or radiocalico-db-dev
+
+# Local
+rm db/radiocalico.db
+```
+
+---
+
+## Docker Deployment
+
+### Production Architecture
+
+The production deployment uses a multi-service architecture:
+
+**Services:**
+1. **nginx** (web server) — Reverse proxy, static file serving, caching, compression
+2. **radiocalico-api** (Node.js/Express) — API backend with PostgreSQL
+3. **PostgreSQL** — Production database
+
+**Benefits:**
+- Separation of concerns (web server vs API server)
+- Static file caching and gzip compression via nginx
+- PostgreSQL for scalability and advanced features
+- Health checks on all services
+- Auto-restart on failure
+
+### Image Sizes
+
+- **Development Stack**: 670MB (Node.js + SQLite + nodemon)
+- **Production Stack**: ~600MB total
+  - nginx: 50MB (Alpine)
+  - Node.js API: 300MB (Alpine)
+  - PostgreSQL: 250MB (Alpine)
+
+### Container Configuration
+
+| Environment | Host Port | Database | Web Server | Features |
+|---|---|---|---|---|
+| Production | 3001 | PostgreSQL | nginx | Health checks, auto-restart, scalable |
+| Development | 3000 | SQLite | Express | Hot-reload (nodemon), simplified |
+
+### Docker Files
+
+- `Dockerfile` — Legacy production build (SQLite, Express)
+- `Dockerfile.prod` — New production build (PostgreSQL, API-only)
+- `Dockerfile.dev` — Development build (with nodemon)
+- `docker-compose.yml` — Orchestrates all services
+- `nginx.conf` — Production web server configuration
+- `.dockerignore` — Optimizes build context
+
+### View Logs
+
+```bash
+# Production logs
+docker-compose logs -f radiocalico-prod
+
+# Development logs
+docker-compose logs -f radiocalico-dev
+
+# All logs
+docker-compose logs -f
+```
+
+### Run Tests in Docker
+
+```bash
+docker-compose exec radiocalico-dev npm test
+docker-compose exec radiocalico-dev npm run test:coverage
+```
 
 ---
 
@@ -102,8 +212,8 @@ The server starts at **http://localhost:3000**.
 ### Example
 
 ```bash
-curl http://localhost:3000/api/health
-# → {"status":"ok","time":"2026-06-24T00:00:00.000Z"}
+curl http://localhost:3001/api/health
+# → Returns health status
 ```
 
 ---
