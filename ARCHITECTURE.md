@@ -60,11 +60,11 @@ graph TB
         Vinyl["Spinning Vinyl<br/>Animation"]
     end
 
-    subgraph "CI/CD & Security"
-        GitHub["GitHub Actions<br/>CI/CD Pipeline"]
+    subgraph CICD["CI/CD Pipeline"]
+        GitHub["GitHub Actions"]
         Testing["Unit Tests<br/>Integration Tests"]
-        Security["Security Scanning<br/>npm audit<br/>Trivy<br/>TruffleHog"]
-        Docker["Docker Build<br/>Multi-stage"]
+        Security["Security Scanning<br/>npm audit, Trivy"]
+        Docker["Docker Build"]
     end
 
     %% Client connections
@@ -138,7 +138,7 @@ graph TB
     class Users,Tracks,Ratings data
     class HealthEP,NowPlayingEP,RateEP,RatingsEP,RecentEP,UsersEP api
     class HLSStream,Segments,Manifest streaming
-    class GitHub,Testing,Security,Docker ci
+    class CICD ci
 ```
 
 ---
@@ -350,14 +350,14 @@ graph TB
 
 ```mermaid
 graph LR
-    subgraph External ["External Network"]
+    subgraph External["External Network"]
         UserBrowser["User Browser<br/>localhost:3001<br/>or<br/>remote-server:3001"]
     end
 
     subgraph Docker["Docker Network: radiocalico-network"]
         subgraph NGINXContainer["nginx Container<br/>radiocalico-web"]
             Port80["Port 80 Internal<br/>Exposed as 3001"]
-            StaticFiles["Static Files Handler<br/>public/"]
+            StaticFiles["Static Files<br/>public/"]
             ReverseProxy["Reverse Proxy<br/>to API"]
         end
 
@@ -373,9 +373,9 @@ graph LR
     end
 
     UserBrowser -->|localhost:3001| Port80
-    Port80 -->|/api/...| ReverseProxy
+    Port80 -->|/api/routes| ReverseProxy
     ReverseProxy -->|:3000/api| Port3000
-    Port80 -->|*.js, *.css, *.html| StaticFiles
+    Port80 -->|static files| StaticFiles
     Port3000 -->|Queries| Port5432
     Port5432 -->|Tables| PSQL
 
@@ -394,59 +394,59 @@ graph LR
 
 ```mermaid
 graph TB
-    subgraph "Network Security"
+    subgraph NetSec["Network Security"]
         HTTPS["TLS/HTTPS Termination<br/>Reverse Proxy"]
-        Headers["Security Headers<br/>X-Frame-Options<br/>X-Content-Type-Options"]
-        CORS["CORS Configuration<br/>Cross-origin Requests"]
+        Headers["Security Headers<br/>X-Frame, X-Content-Type"]
+        CORS["CORS Configuration"]
     end
 
-    subgraph "Application Security"
+    subgraph AppSec["Application Security"]
         InputValidation["Input Validation<br/>Request Sanitization"]
         Pooling["Connection Pooling<br/>Rate Limiting"]
-        SessionMgmt["Session Management<br/>localStorage + DB"]
+        SessionMgmt["Session Management<br/>localStorage"]
     end
 
-    subgraph "Database Security"
+    subgraph DBSec["Database Security"]
         Constraints["Constraints<br/>UNIQUE, CHECK"]
         Indexes["Indexes<br/>Query Optimization"]
-        Encryption["Encryption at Rest<br/>Password Hashing"]
+        Encryption["Encryption<br/>Password Hashing"]
     end
 
-    subgraph "Container Security"
+    subgraph ContainerSec["Container Security"]
         NonRoot["Non-root User<br/>UID 1001"]
         Alpine["Minimal Base Images<br/>Alpine Linux"]
-        ReadOnly["Read-only Filesystem<br/>Specific Mounts"]
+        ReadOnly["Read-only Filesystem"]
     end
 
-    subgraph "CI/CD Security"
+    subgraph CISec["CI/CD Security"]
         NPMAudit["npm audit<br/>Dependency Scan"]
-        SecretScan["Secret Scanning<br/>TruffleHog, GitLeaks"]
-        Trivy["Container Scanning<br/>Trivy, Grype"]
-        SAST["Code Analysis<br/>ESLint Security"]
+        SecretScan["Secret Scanning"]
+        TrivyTool["Container Scanning"]
+        SASTTool["Code Analysis"]
     end
 
-    Client["🌐 Client"]
+    Client["Client Layer"]
     Client -->|HTTPS| HTTPS
     HTTPS -->|Headers| Headers
     Headers -->|Validate| InputValidation
     InputValidation -->|Pool| Pooling
     Pooling -->|Session| SessionMgmt
-    SessionMgmt -->|Stored in| Constraints
-    Constraints -->|Speed up| Indexes
-    Indexes -->|Protection| Encryption
+    SessionMgmt -->|Stored| Constraints
+    Constraints -->|Speed| Indexes
+    Indexes -->|Protect| Encryption
     
     Build["Build Process"]
     Build -->|Scan| NPMAudit
     Build -->|Detect| SecretScan
-    Build -->|Security| Trivy
-    Build -->|Analyze| SAST
+    Build -->|Security| TrivyTool
+    Build -->|Analyze| SASTTool
     
     Build -->|Create| Alpine
     Alpine -->|Run as| NonRoot
     NonRoot -->|Limit| ReadOnly
 
     classDef security fill:#ffebee,stroke:#b71c1c,stroke-width:2px
-    class "Network Security","Application Security","Database Security","Container Security","CI/CD Security" security
+    class NetSec,AppSec,DBSec,ContainerSec,CISec security
 ```
 
 ---
@@ -511,7 +511,7 @@ graph TB
 
 ```mermaid
 graph LR
-    subgraph Frontend["🖥️ Frontend<br/>Browser"]
+    subgraph FrontendLayer["Frontend<br/>Browser"]
         F1["HTML5"]
         F2["CSS3"]
         F3["Vanilla JS"]
@@ -519,7 +519,7 @@ graph LR
         F5["localStorage"]
     end
 
-    subgraph Dev["📦 Development"]
+    subgraph DevStack["Development"]
         D1["Node.js 22"]
         D2["Express.js 5"]
         D3["SQLite"]
@@ -527,7 +527,7 @@ graph LR
         D5["Jest"]
     end
 
-    subgraph Prod["🚀 Production"]
+    subgraph ProdStack["Production"]
         P1["Node.js 22"]
         P2["Express.js 5"]
         P3["PostgreSQL 16"]
@@ -535,22 +535,22 @@ graph LR
         P5["pg driver"]
     end
 
-    subgraph DevOps["🔧 DevOps"]
+    subgraph DevOpsTools["DevOps"]
         DO1["Docker"]
         DO2["Docker Compose"]
         DO3["GitHub Actions"]
         DO4["Trivy"]
     end
 
-    Frontend -->|API Calls| Dev
-    Frontend -->|API Calls| Prod
-    Dev -->|Run| D1
+    FrontendLayer -->|API Calls| DevStack
+    FrontendLayer -->|API Calls| ProdStack
+    DevStack -->|Run| D1
     D1 -->|Framework| D2
     D2 -->|Database| D3
     D2 -->|Testing| D5
     D3 -.->|Watch| D4
     
-    Prod -->|Runtime| P1
+    ProdStack -->|Runtime| P1
     P1 -->|API| P2
     P2 -->|Connect| P5
     P5 -->|DB| P3
@@ -565,10 +565,10 @@ graph LR
     classDef p fill:#e8f5e9,stroke:#1b5e20
     classDef do fill:#ede7f6,stroke:#311b92
 
-    class Frontend f
-    class Dev d
-    class Prod p
-    class DevOps do
+    class FrontendLayer f
+    class DevStack d
+    class ProdStack p
+    class DevOpsTools do
 ```
 
 ---
@@ -597,8 +597,8 @@ graph LR
     CI["GitHub Actions<br/>CI/CD"]
     
     Git -->|Push| CI
-    CI -->|1. Test| Testing["Unit Tests<br/>Integration Tests"]
-    CI -->|2. Scan| Security["npm audit<br/>Trivy<br/>TruffleHog"]
+    CI -->|Test| Testing["Unit Tests<br/>Integration Tests"]
+    CI -->|Scan| Security["npm audit<br/>Trivy"]
     Testing -->|Pass| Build["Build Docker Images"]
     Security -->|Pass| Build
     
@@ -607,11 +607,11 @@ graph LR
     
     Build -->|Push to| Registry["Docker Registry<br/>Docker Hub"]
     
-    Registry -->|Pull| DevEnv["Developer Machine<br/>docker-compose up"]
-    Registry -->|Pull| ProdEnv["Production Server<br/>docker-compose up"]
+    Registry -->|Pull| DevEnv["Developer Machine<br/>docker-compose"]
+    Registry -->|Pull| ProdEnv["Production Server<br/>docker-compose"]
     
-    DevEnv -->|http://localhost:3000| DevUser["👨‍💻 Developer"]
-    ProdEnv -->|http://hostname:3001| Users["👥 Users"]
+    DevEnv -->|localhost:3000| DevUser["Developer"]
+    ProdEnv -->|hostname:3001| Users["Users"]
 
     classDef source fill:#e3f2fd,stroke:#1565c0
     classDef pipeline fill:#ede7f6,stroke:#311b92
@@ -634,47 +634,47 @@ graph LR
 
 ```mermaid
 graph TB
-    subgraph Current["Current Single-Instance"]
+    subgraph CurrentSetup["Current Single-Instance"]
         Dev1["1 Dev Instance"]
-        Prod1["1 nginx + 1 API + 1 PostgreSQL"]
+        Prod1["1 nginx, 1 API, 1 PostgreSQL"]
     end
 
-    subgraph Horizontal["Horizontal Scaling"]
-        LB["Load Balancer<br/>HAProxy/Traefik"]
-        N1["nginx #1"]
-        N2["nginx #2"]
-        N3["nginx #3"]
-        API1["API #1"]
-        API2["API #2"]
-        API3["API #3"]
-        PG["PostgreSQL<br/>Primary+Replicas"]
+    subgraph HorizontalScale["Horizontal Scaling"]
+        LB["Load Balancer<br/>HAProxy"]
+        N1["nginx 1"]
+        N2["nginx 2"]
+        N3["nginx 3"]
+        API1["API 1"]
+        API2["API 2"]
+        API3["API 3"]
+        PG["PostgreSQL<br/>Primary"]
     end
 
-    subgraph Vertical["Vertical Scaling"]
-        Docker["Docker Swarm<br/>or"]
-        K8s["Kubernetes<br/>Container Orchestration"]
+    subgraph VerticalScale["Vertical Scaling"]
+        Docker["Docker Swarm"]
+        K8s["Kubernetes"]
     end
 
-    Current -->|Add More Instances| Horizontal
-    LB -->|Round Robin| N1
-    LB -->|Round Robin| N2
-    LB -->|Round Robin| N3
+    CurrentSetup -->|Add Instances| HorizontalScale
+    LB -->|Route| N1
+    LB -->|Route| N2
+    LB -->|Route| N3
     N1 -->|Proxy| API1
     N2 -->|Proxy| API2
     N3 -->|Proxy| API3
-    API1 -->|Pool| PG
-    API2 -->|Pool| PG
-    API3 -->|Pool| PG
+    API1 -->|Connect| PG
+    API2 -->|Connect| PG
+    API3 -->|Connect| PG
     
-    Current -->|Upgrade Resources| Vertical
-    Horizontal -->|Manage| Docker
-    Horizontal -->|Manage| K8s
+    CurrentSetup -->|Upgrade Resources| VerticalScale
+    HorizontalScale -->|Managed by| Docker
+    HorizontalScale -->|Managed by| K8s
 
     classDef current fill:#fff9c4,stroke:#f57f17
     classDef scale fill:#e8f5e9,stroke:#1b5e20
     classDef orch fill:#ede7f6,stroke:#311b92
 
-    class Current current
-    class Horizontal,Vertical scale
+    class CurrentSetup current
+    class HorizontalScale,VerticalScale scale
     class Docker,K8s orch
 ```
